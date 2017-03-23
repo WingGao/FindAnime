@@ -15,16 +15,21 @@ function animadb() {
         cookieJar.setCookie(cookie, 'http://anidb.net');
     });
     //制造请求
-    function get_option(url) {
+    function get_option(url, opt = {}) {
+        opt = _.defaults(opt, {
+            json: false,
+        });
         let option = {
             url: url,
             jar: cookieJar,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36',
-                'Content-Type': 'application/json',
                 "X-LControl": "x-no-cache",
             },
         };
+        if (opt.json) {
+            option.headers['Content-Type'] = 'application/json';
+        }
         if (__DEBUG__) {
             option.proxy = 'http://127.0.0.1:8020';
         }
@@ -44,12 +49,11 @@ function animadb() {
 
     //搜索相关信息
     function search(name) {
-        let option = get_option('http://anidb.net/perl-bin/animedb.pl?show=json&action=search&type=anime&query=' + encodeURIComponent(name));
-        option.headers['Content-Type'] = 'application/json';
+        let option = get_option('http://anidb.net/perl-bin/animedb.pl?show=json&action=search&type=anime&query=' + encodeURIComponent(name), {json: true});
 
         request(option, (error, response, body) => {
             let bjson = JSON.parse(body);
-            single_info(bjson[0].id);
+            //single_info(bjson[0].id);
             console.log(body)
         })
     }
@@ -61,5 +65,5 @@ function animadb() {
 }
 
 let ani = animadb();
+ani.search("学園美少女制裁秘録");
 ani.single_info(12424);
-// animadb("学園美少女制裁秘録");

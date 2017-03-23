@@ -3,6 +3,7 @@ let fs = require('fs');
 let cheerio = require('cheerio');
 let request = require('request');
 request = request.defaults({jar: true});
+let Q = require('q');
 
 const __DEBUG__ = true;
 
@@ -45,22 +46,39 @@ function animadb() {
 
     //获取单页信息
     function single_info(id) {
+        let defer = Q.defer();
         request(get_option('http://anidb.net/perl-bin/animedb.pl?show=anime&aid=' + id), (error, response, body) => {
             let $ = cheerio.load(body);
             let mydata = $('#mydata');
             let seen = mydata.find('.mylistseen .value').text();
             let score = mydata.find('.myvote').text();
-            console.log(seen, score)
-        })
+            let eps = [];
+            $('#eplist tbody tr').each((i, elem) => {
+                let ele = $(elem);
+                let ep = {
+                    eid: parseInt(ele.attr('data-anidb-eid')),
+                    duration: ele.find('.duration').text().trim(),
+                };
+                eps.push(ep);
+            });
+            let info = {
+                id: id,
+                seen: seen,
+                score: score,
+                episodes: eps,
+            };
+            defer.resolve(info);
+        });
+        return defer.promise;
     }
 
     //获取的ed2k
     function get_ed2k(aid, eid, sort = true) {
+        let defer = Q.defer();
         request(get_option(`http://anidb.net/perl-bin/animedb.pl?show=json&action=expand_episode&unhide=1&aid=${aid}&eid=${eid}`, {
             json: true,
         }), (error, response, body) => {
             let data = JSON.parse(body)[0];
-            console.log('ed2k', data.id, data.cnt)
             let $ = cheerio.load(data.html);
             //遍历所以tr
             let links = [];
@@ -98,8 +116,9 @@ function animadb() {
                     return -score
                 });
             }
-            console.log(links)
-        })
+            defer.resolve(links);
+        });
+        return defer.promise;
     }
 
     //搜索相关信息
@@ -122,6 +141,18 @@ function animadb() {
 
 let ani = animadb();
 //ani.search("学園美少女制裁秘録");
-//ani.single_info(12424);
+ani.single_info(12005).then((info) => {
+    info.episodes.forEach((ep) => {
+        ani.get_ed2k(info.id, ep.eid).then((links) => {
+            _.forEach(links, (l) => {
+                console.log(l.link);
+            });
+        });
+    });
+});
 //ani.get_ed2k(12005, 180186);
-ani.get_ed2k(528, 5850);
+// ani.get_ed2k(528, 5850).then((links) => {
+//     _.forEach(links, (l) => {
+//         console.log(l.link);
+//     })
+// });

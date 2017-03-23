@@ -6,6 +6,13 @@ request = request.defaults({jar: true});
 
 const __DEBUG__ = true;
 
+const STATE_UNCEN = 0;
+const STATE_CEN = 1;
+const STATE_UNKNOWN = 2;
+
+function cenStr(cen) {
+    return ['UNCEN', 'CEN', 'UNKNOWN'][cen]
+}
 
 function animadb() {
     let cookieJson = JSON.parse(fs.readFileSync('cookie.json'));
@@ -47,6 +54,54 @@ function animadb() {
         })
     }
 
+    //获取的ed2k
+    function get_ed2k(aid, eid, sort = true) {
+        request(get_option(`http://anidb.net/perl-bin/animedb.pl?show=json&action=expand_episode&unhide=1&aid=${aid}&eid=${eid}`, {
+            json: true,
+        }), (error, response, body) => {
+            let data = JSON.parse(body)[0];
+            console.log('ed2k', data.id, data.cnt)
+            let $ = cheerio.load(data.html);
+            //遍历所以tr
+            let links = [];
+            $('.filelist tbody tr').each((i, elem) => {
+                let ele = $(elem);
+                let resolution = ele.find('.resolution').text().trim();
+                let censtate = STATE_UNKNOWN;
+                if (ele.find('.i_uncensored').length > 0) {
+                    censtate = STATE_UNCEN;
+                } else if (ele.find('.i_censored').length > 0) {
+                    censtate = STATE_CEN;
+                }
+                let link = ele.find('.i_file_ed2k').attr('href');
+                if (link === undefined) {
+                    return;
+                }
+                let linkObj = {
+                    link: link,
+                    resolution: resolution,
+                    censtate: censtate,
+                };
+                links.push(linkObj);
+            });
+            if (sort) {
+                links = _.orderBy(links, (l) => {
+                    let score = 0;
+                    if (l.censtate == STATE_UNCEN) {
+                        score = 30000;
+                    } else {
+                        score = 20000;
+                    }
+                    if (l.resolution.indexOf('x') > 0) {
+                        score += parseInt(l.resolution.split('x')[0])
+                    }
+                    return -score
+                });
+            }
+            console.log(links)
+        })
+    }
+
     //搜索相关信息
     function search(name) {
         let option = get_option('http://anidb.net/perl-bin/animedb.pl?show=json&action=search&type=anime&query=' + encodeURIComponent(name), {json: true});
@@ -61,9 +116,12 @@ function animadb() {
     return {
         search: search,
         single_info: single_info,
+        get_ed2k: get_ed2k,
     }
 }
 
 let ani = animadb();
-ani.search("学園美少女制裁秘録");
-ani.single_info(12424);
+//ani.search("学園美少女制裁秘録");
+//ani.single_info(12424);
+//ani.get_ed2k(12005, 180186);
+ani.get_ed2k(528, 5850);
